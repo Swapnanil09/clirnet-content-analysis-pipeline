@@ -209,7 +209,7 @@ def data_path(filename: str) -> Path:
 # The 3 final deliverables — these are the exact files emailed out every run.
 OUT_SPECIALITY_MONTH_DIFF: Path = data_path(f"Speciality_month_diff_campaign_{MONTH_NAME}.csv")
 OUT_CONTENT_TEMPLATE_ANALYSIS: Path = data_path(f"Content_template_analysis_{MONTH_NAME}.csv")
-OUT_ALL_CONTENT_DATA: Path = data_path("All_content_data_Current.xlsx")
+OUT_ALL_CONTENT_DATA: Path = data_path("All_content_data_Current.csv")
 
 # ---------------------------------------------------------------------------
 # 6. CHUNK / BATCH SIZES — tune via env vars for very large tables

@@ -39,6 +39,8 @@ def _attachment_mime_type(path: Path) -> tuple[str, str]:
         return "text", "csv"
     if path.suffix.lower() == ".xlsx":
         return "application", "vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+    if path.suffix.lower() == ".zip":
+        return "application", "zip"
     return "application", "octet-stream"
 
 
@@ -67,8 +69,18 @@ def send_report_email(attachments: list[Path] | None = None) -> None:
     msg.set_content(build_body())
 
     for path in attachments:
-        maintype, subtype = _attachment_mime_type(path)
-        msg.add_attachment(path.read_bytes(), maintype=maintype, subtype=subtype, filename=path.name)
+        if path == config.OUT_ALL_CONTENT_DATA:
+            zip_path = path.with_suffix(".zip")
+            log.info("Zipping %s to %s to reduce attachment size...", path.name, zip_path.name)
+            import zipfile
+            with zipfile.ZipFile(zip_path, "w", zipfile.ZIP_DEFLATED) as zipf:
+                zipf.write(path, arcname=path.name)
+            path_to_attach = zip_path
+        else:
+            path_to_attach = path
+
+        maintype, subtype = _attachment_mime_type(path_to_attach)
+        msg.add_attachment(path_to_attach.read_bytes(), maintype=maintype, subtype=subtype, filename=path_to_attach.name)
 
     log.info("Sending report email to %s (%s attachments)", config.EMAIL_TO, len(attachments))
     with smtplib.SMTP(config.EMAIL_SMTP_SERVER, config.EMAIL_SMTP_PORT) as server:

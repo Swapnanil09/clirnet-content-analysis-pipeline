@@ -43,7 +43,10 @@ def _planetscale_temp_ids(remaining_ids) -> pd.DataFrame:
             LIMIT %s OFFSET %s
         """
 
-    return db.fetch_id_batches_mysql_paginated(cfg, remaining_ids, builder, quote=lambda x: f'"{x}"')
+    df = db.fetch_id_batches_mysql_paginated(cfg, remaining_ids, builder, quote=lambda x: f'"{x}"')
+    if df.empty:
+        df = pd.DataFrame(columns=["id", "transaction_id", "created_at"])
+    return df
 
 
 def run() -> pd.DataFrame:

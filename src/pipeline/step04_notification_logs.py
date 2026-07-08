@@ -66,6 +66,8 @@ def run() -> pd.DataFrame:
             """
 
         ps_logs = db.fetch_id_batches_mysql_paginated(ns_cfg, remaining_ids, ps_builder, batch_size=1000)
+        if ps_logs.empty:
+            ps_logs = pd.DataFrame(columns=["temp_id", "status", "uid", "channel"])
         from_plantscale = pd.merge(remaining, ps_logs, left_on="id", right_on="temp_id", how="left").dropna()
         from_plantscale = _apply_status(from_plantscale)
         log.info("PlanetScale resolved %s more logs", len(from_plantscale))

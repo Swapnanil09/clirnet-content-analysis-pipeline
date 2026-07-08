@@ -154,7 +154,7 @@ def run() -> pd.DataFrame:
     final_content["reach"] = final_content["reach"].astype(int)
     final_content["popularity"] = final_content["popularity"].astype(int)
 
-    final_content.to_excel(config.OUT_ALL_CONTENT_DATA, index=False)
+    final_content.to_csv(config.OUT_ALL_CONTENT_DATA, index=False)
     log.info("Wrote %s (%s rows)", config.OUT_ALL_CONTENT_DATA, len(final_content))
 
     # Parquet copy for the join steps downstream (cheaper to re-read than xlsx)
