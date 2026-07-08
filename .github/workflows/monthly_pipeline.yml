@@ -1,0 +1,102 @@
+name: Monthly Content Analysis BI Pipeline
+
+# Runs on the 3rd of every month at 03:00 UTC == 08:30 AM Asia/Kolkata (IST)
+# and reports on the PREVIOUS month (see src/config.py — TARGET_MONTH
+# defaults to "last month" when not set).
+#
+# GitHub Actions cron always runs in UTC — there's no native timezone
+# option — so the UTC hour below is IST minus 5:30. IST is far enough
+# ahead of UTC that 08:30 IST still falls on the SAME calendar date in
+# UTC (03:00 UTC), so "3rd of the month" means the same day in both
+# timezones. (This stops being true for early-morning IST times, e.g.
+# 3:00 AM IST is 9:30 PM UTC the day before — if you ever move this
+# earlier than ~05:30 IST, you'll need to shift the day-of-month back by
+# one to compensate.) Adjust at https://crontab.guru if you want a
+# different day/time.
+on:
+  schedule:
+    - cron: "0 3 3 * *"
+  workflow_dispatch:
+    inputs:
+      target_month:
+        description: 'Backfill a specific month, format YYYY-MM (leave empty for "last month")'
+        required: false
+        default: ""
+      send_email:
+        description: "Send the report email at the end of this run"
+        required: false
+        default: "true"
+        type: choice
+        options: ["true", "false"]
+
+jobs:
+  run-pipeline:
+    runs-on: ubuntu-latest
+    # This Environment holds every secret below (Settings -> Environments ->
+    # production -> Add secret). Using a named Environment — rather than
+    # plain repo secrets — lets you require manual approval before a run
+    # touches production databases, and keeps this pipeline's credentials
+    # separate from any other workflow in the repo. See README.md.
+    environment: production
+    timeout-minutes: 180
+
+    env:
+      TARGET_MONTH: ${{ github.event.inputs.target_month }}
+
+      CRM_DB_HOST: ${{ secrets.CRM_DB_HOST }}
+      CRM_DB_USER: ${{ secrets.CRM_DB_USER }}
+      CRM_DB_PASSWORD: ${{ secrets.CRM_DB_PASSWORD }}
+      CRM_DB_DATABASE: ${{ secrets.CRM_DB_DATABASE }}
+      CRM_DB_REPLICA_DATABASE: ${{ secrets.CRM_DB_REPLICA_DATABASE }}
+
+      SHORTLINK_DB_HOST: ${{ secrets.SHORTLINK_DB_HOST }}
+      SHORTLINK_DB_USER: ${{ secrets.SHORTLINK_DB_USER }}
+      SHORTLINK_DB_PASSWORD: ${{ secrets.SHORTLINK_DB_PASSWORD }}
+      SHORTLINK_DB_DATABASE: ${{ secrets.SHORTLINK_DB_DATABASE }}
+
+      NOTIFICATION_SHORTLINK_DB_HOST: ${{ secrets.NOTIFICATION_SHORTLINK_DB_HOST }}
+      NOTIFICATION_SHORTLINK_DB_USER: ${{ secrets.NOTIFICATION_SHORTLINK_DB_USER }}
+      NOTIFICATION_SHORTLINK_DB_PASSWORD: ${{ secrets.NOTIFICATION_SHORTLINK_DB_PASSWORD }}
+      NOTIFICATION_SHORTLINK_DB_DATABASE: ${{ secrets.NOTIFICATION_SHORTLINK_DB_DATABASE }}
+
+      CLIRNET_DB_HOST: ${{ secrets.CLIRNET_DB_HOST }}
+      CLIRNET_DB_USER: ${{ secrets.CLIRNET_DB_USER }}
+      CLIRNET_DB_PASSWORD: ${{ secrets.CLIRNET_DB_PASSWORD }}
+      CLIRNET_DB_DATABASE: ${{ secrets.CLIRNET_DB_DATABASE }}
+
+      CLICKHOUSE_HOST: ${{ secrets.CLICKHOUSE_HOST }}
+      CLICKHOUSE_USER: ${{ secrets.CLICKHOUSE_USER }}
+      CLICKHOUSE_PASSWORD: ${{ secrets.CLICKHOUSE_PASSWORD }}
+
+      EMAIL_FROM: ${{ secrets.EMAIL_FROM }}
+      EMAIL_PASSWORD: ${{ secrets.EMAIL_PASSWORD }}
+      EMAIL_SMTP_SERVER: ${{ secrets.EMAIL_SMTP_SERVER }}
+      EMAIL_SMTP_PORT: ${{ secrets.EMAIL_SMTP_PORT }}
+      EMAIL_TO: ${{ secrets.EMAIL_TO }}
+      EMAIL_SIGNOFF_NAME: ${{ secrets.EMAIL_SIGNOFF_NAME }}
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        run: |
+          if [ "${{ github.event.inputs.send_email }}" = "false" ]; then
+            python run_pipeline.py --no-email
+          else
+            python run_pipeline.py
+          fi
+
+      - name: Upload generated reports as a workflow artifact
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: content-analysis-bi-${{ github.run_id }}
+          path: data/
+          retention-days: 90

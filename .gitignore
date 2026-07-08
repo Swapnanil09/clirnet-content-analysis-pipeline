@@ -1,0 +1,23 @@
+# Environment / secrets — never commit real credentials
+.env
+*.env
+!.env.example
+
+# Pipeline outputs (regenerated every run — see GitHub Actions artifacts instead)
+data/
+*.parquet
+*.xlsx
+*.csv
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# OS / editor cruft
+.DS_Store
+.vscode/
+.idea/
