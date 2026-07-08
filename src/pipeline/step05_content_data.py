@@ -38,7 +38,7 @@ def _fetch_main_paged(cfg: config.MySQLConfig, ct: ContentTypeConfig) -> pd.Data
         ORDER BY kc.{ct.id_col}
         LIMIT %s
     """
-    return db.fetch_pk_paginated(cfg, sql, id_col_alias="type_id")
+    return db.fetch_pk_paginated(cfg, sql, id_col_alias="type_id", batch_size=10000)
 
 
 def _fetch_specialities(cfg: config.MySQLConfig, ct: ContentTypeConfig, ids) -> pd.DataFrame:

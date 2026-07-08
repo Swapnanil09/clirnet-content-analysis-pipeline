@@ -58,6 +58,6 @@ def run() -> None:
     out_path = config.data_path("user_data.parquet")
     log.info("Streaming user_data_index in %s-row pages -> %s", config.SQL_PAGE_SIZE, out_path)
     total = db.stream_pk_paginated_to_parquet(
-        cfg, USER_DATA_SQL, id_col_alias="user_master_id", out_path=out_path, post_process=_post_process
+        cfg, USER_DATA_SQL, id_col_alias="user_master_id", out_path=out_path, post_process=_post_process, batch_size=50000
     )
     log.info("Wrote %s (%s rows total, streamed — never held fully in memory)", out_path, total)
