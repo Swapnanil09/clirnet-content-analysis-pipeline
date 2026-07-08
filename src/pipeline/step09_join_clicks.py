@@ -36,11 +36,21 @@ def run() -> pd.DataFrame:
     notifications = notifications[FINAL_COLUMNS]
     notifications = notifications.dropna().copy()
     notifications["uid"] = notifications["uid"].astype(int)
+    notifications["shorturl_id"] = notifications["shorturl_id"].astype(int)
 
     clicks = pd.read_parquet(config.data_path("shortlink_click.parquet"))
     clicks = clicks[["short_url_id", "uid", "date", "time"]].rename(
         columns={"date": "click_date", "time": "click_time", "short_url_id": "shorturl_id"}
     )
+    clicks["shorturl_id"] = clicks["shorturl_id"].astype(int)
+    clicks["uid"] = clicks["uid"].astype(int)
+
+    # Filter clicks to only those shorturl_id and uid pairs present in notifications
+    # This prevents memory explosion by removing millions of irrelevant click records
+    # before performing the left join.
+    keys = ["shorturl_id", "uid"]
+    notifications_keys = notifications[keys].drop_duplicates()
+    clicks = clicks.merge(notifications_keys, on=keys, how="inner")
 
     notifications_click = notifications.merge(clicks, on=["shorturl_id", "uid"], how="left")
     notifications_click["user_clicked"] = notifications_click["click_date"].notna().astype(int)
