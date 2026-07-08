@@ -38,19 +38,33 @@ def run() -> pd.DataFrame:
     notifications["uid"] = notifications["uid"].astype(int)
     notifications["shorturl_id"] = notifications["shorturl_id"].astype(int)
 
-    clicks = pd.read_parquet(config.data_path("shortlink_click.parquet"))
-    clicks = clicks[["short_url_id", "uid", "date", "time"]].rename(
-        columns={"date": "click_date", "time": "click_time", "short_url_id": "shorturl_id"}
-    )
-    clicks["shorturl_id"] = clicks["shorturl_id"].astype(int)
-    clicks["uid"] = clicks["uid"].astype(int)
-
-    # Filter clicks to only those shorturl_id and uid pairs present in notifications
-    # This prevents memory explosion by removing millions of irrelevant click records
-    # before performing the left join.
+    # Fast set lookup for notifications keys (shorturl_id, uid)
     keys = ["shorturl_id", "uid"]
-    notifications_keys = notifications[keys].drop_duplicates()
-    clicks = clicks.merge(notifications_keys, on=keys, how="inner")
+    notifications_keys = set(notifications[keys].drop_duplicates().itertuples(index=False, name=None))
+
+    import pyarrow.parquet as pq
+    pf = pq.ParquetFile(config.data_path("shortlink_click.parquet"))
+    filtered_chunks = []
+    
+    # Iterate in 100,000-row batches to keep memory usage flat
+    for batch in pf.iter_batches(batch_size=100000, columns=["short_url_id", "uid", "date", "time"]):
+        df_chunk = batch.to_pandas()
+        df_chunk = df_chunk.rename(
+            columns={"date": "click_date", "time": "click_time", "short_url_id": "shorturl_id"}
+        )
+        df_chunk["shorturl_id"] = df_chunk["shorturl_id"].astype(int)
+        df_chunk["uid"] = df_chunk["uid"].astype(int)
+        
+        # Keep only the rows corresponding to notifications sent in the target month
+        mask = [t in notifications_keys for t in zip(df_chunk["shorturl_id"], df_chunk["uid"])]
+        df_chunk = df_chunk[mask]
+        if not df_chunk.empty:
+            filtered_chunks.append(df_chunk)
+
+    if filtered_chunks:
+        clicks = pd.concat(filtered_chunks, ignore_index=True)
+    else:
+        clicks = pd.DataFrame(columns=["shorturl_id", "uid", "click_date", "click_time"])
 
     notifications_click = notifications.merge(clicks, on=["shorturl_id", "uid"], how="left")
     notifications_click["user_clicked"] = notifications_click["click_date"].notna().astype(int)
