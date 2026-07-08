@@ -50,6 +50,7 @@ def mysql_connector_connect(cfg: config.MySQLConfig, autocommit: bool = True):
         password=cfg.password,
         database=cfg.database,
         autocommit=autocommit,
+        ssl_ca=config.SSL_CA_PATH,
     )
 
 
@@ -172,8 +173,7 @@ def fetch_pk_paginated(
     and filter `WHERE <pk> > %s ... LIMIT %s`) by primary key rather than
     OFFSET — much faster on huge tables since the database doesn't have to
     skip N rows on every page. Reconnects and retries on transient errors,
-    matching the resilience already present in the original content-data
-    notebook (extended here to every step that needs it).
+    with a limit of MAX_RETRIES to prevent infinite loops.
     """
     batch_size = batch_size or config.SQL_PAGE_SIZE
     frames: list[pd.DataFrame] = []
@@ -181,21 +181,27 @@ def fetch_pk_paginated(
     conn = mysql_connector_connect(cfg, autocommit=autocommit)
     try:
         while True:
-            try:
-                cur = conn.cursor(buffered=True)
-                cur.execute(sql_template, (last_id, batch_size))
-                rows = cur.fetchall()
-                cols = [c[0] for c in cur.description]
-                cur.close()
-            except mysql.connector.Error as e:
-                log.warning("pk-paginated fetch blip at id %s: %s — reconnecting", last_id, e)
+            retries = 0
+            while True:
                 try:
-                    conn.close()
-                except Exception:
-                    pass
-                time.sleep(RETRYABLE_SLEEP_SECONDS)
-                conn = mysql_connector_connect(cfg, autocommit=autocommit)
-                continue
+                    cur = conn.cursor(buffered=True)
+                    cur.execute(sql_template, (last_id, batch_size))
+                    rows = cur.fetchall()
+                    cols = [c[0] for c in cur.description]
+                    cur.close()
+                    break
+                except mysql.connector.Error as e:
+                    retries += 1
+                    if retries > MAX_RETRIES:
+                        log.error("pk-paginated fetch failed after %s retries", MAX_RETRIES)
+                        raise
+                    log.warning("pk-paginated fetch blip at id %s: %s — retry %s/%s", last_id, e, retries, MAX_RETRIES)
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    time.sleep(RETRYABLE_SLEEP_SECONDS * retries)
+                    conn = mysql_connector_connect(cfg, autocommit=autocommit)
             if not rows:
                 break
             df = pd.DataFrame(rows, columns=cols)
@@ -207,6 +213,71 @@ def fetch_pk_paginated(
     finally:
         conn.close()
     return pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+
+
+def stream_pk_paginated_to_parquet(
+    cfg: config.MySQLConfig,
+    sql_template: str,
+    id_col_alias: str,
+    out_path: Path,
+    batch_size: int | None = None,
+    post_process: Callable[[pd.DataFrame], pd.DataFrame] | None = None,
+    autocommit: bool = True,
+) -> int:
+    """
+    Pages through `sql_template` (which must select `... AS {id_col_alias}`
+    and filter `WHERE <pk> > %s ... LIMIT %s`) by primary key rather than
+    OFFSET and streams straight to a Parquet file, one page at a time,
+    preventing large datasets from consuming too much memory.
+    """
+    batch_size = batch_size or config.SQL_PAGE_SIZE
+    writer = None
+    total = 0
+    last_id = 0
+    conn = mysql_connector_connect(cfg, autocommit=autocommit)
+    try:
+        while True:
+            retries = 0
+            while True:
+                try:
+                    cur = conn.cursor(buffered=True)
+                    cur.execute(sql_template, (last_id, batch_size))
+                    rows = cur.fetchall()
+                    cols = [c[0] for c in cur.description]
+                    cur.close()
+                    break
+                except mysql.connector.Error as e:
+                    retries += 1
+                    if retries > MAX_RETRIES:
+                        log.error("pk-paginated stream failed after %s retries", MAX_RETRIES)
+                        raise
+                    log.warning("pk-paginated stream blip at id %s: %s — retry %s/%s", last_id, e, retries, MAX_RETRIES)
+                    try:
+                        conn.close()
+                    except Exception:
+                        pass
+                    time.sleep(RETRYABLE_SLEEP_SECONDS * retries)
+                    conn = mysql_connector_connect(cfg, autocommit=autocommit)
+
+            if not rows:
+                break
+            chunk = pd.DataFrame(rows, columns=cols)
+            if post_process is not None:
+                chunk = post_process(chunk)
+            table = pa.Table.from_pandas(chunk, preserve_index=False)
+            if writer is None:
+                writer = pq.ParquetWriter(str(out_path), table.schema)
+            writer.write_table(table)
+            total += len(chunk)
+            last_id = int(chunk[id_col_alias].iloc[-1])
+            log.info("  %s: %s rows written so far (id <= %s)", out_path.name, total, last_id)
+            if len(rows) < batch_size:
+                break
+    finally:
+        if writer is not None:
+            writer.close()
+        conn.close()
+    return total
 
 
 # ---------------------------------------------------------------------------
@@ -306,6 +377,7 @@ def fetch_ids_in_batches_mysqlconnector(
             chunk = ids[i : i + batch_size]
             placeholders = ",".join(["%s"] * len(chunk))
             sql = sql_builder(placeholders)
+            retries = 0
             while True:
                 try:
                     cur = conn.cursor(buffered=True)
@@ -315,12 +387,16 @@ def fetch_ids_in_batches_mysqlconnector(
                     cur.close()
                     break
                 except mysql.connector.Error as e:
-                    log.warning("id-batch blip near offset %s: %s — reconnecting", i, e)
+                    retries += 1
+                    if retries > MAX_RETRIES:
+                        log.error("id-batch fetch failed after %s retries", MAX_RETRIES)
+                        raise
+                    log.warning("id-batch blip near offset %s: %s — retry %s/%s", i, e, retries, MAX_RETRIES)
                     try:
                         conn.close()
                     except Exception:
                         pass
-                    time.sleep(RETRYABLE_SLEEP_SECONDS)
+                    time.sleep(RETRYABLE_SLEEP_SECONDS * retries)
                     conn = mysql_connector_connect(cfg)
             if rows:
                 frames.append(pd.DataFrame(rows, columns=cols))

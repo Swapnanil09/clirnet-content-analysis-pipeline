@@ -45,7 +45,7 @@ SELECT ca.id as campaign_id, st.name as template_name, st.content as template_co
 FROM `campaigns` AS ca
 LEFT JOIN `services` AS sa ON ca.campaign_service_id = sa.id
 LEFT JOIN sms_templates AS st ON ca.template_id = st.id
-WHERE ca.campaign_channel_code LIKE 'sms'
+WHERE ca.campaign_channel_code LIKE 'sms' AND DATE(ca.final_datetime) > %s AND DATE(ca.final_datetime) < %s
 
 UNION ALL
 
@@ -54,7 +54,7 @@ SELECT ca.id as campaign_id, st.name as template_name, st.content as template_co
 FROM `campaigns` AS ca
 LEFT JOIN `services` AS sa ON ca.campaign_service_id = sa.id
 LEFT JOIN whatsapp_templates AS st ON ca.template_id = st.id
-WHERE ca.campaign_channel_code LIKE 'whatsapp'
+WHERE ca.campaign_channel_code LIKE 'whatsapp' AND DATE(ca.final_datetime) > %s AND DATE(ca.final_datetime) < %s
 
 UNION ALL
 
@@ -63,7 +63,7 @@ SELECT ca.id as campaign_id, st.name as template_name, st.content as template_co
 FROM `campaigns` AS ca
 LEFT JOIN `services` AS sa ON ca.campaign_service_id = sa.id
 LEFT JOIN platform_templates AS st ON ca.template_id = st.id
-WHERE ca.campaign_channel_code LIKE 'platform'
+WHERE ca.campaign_channel_code LIKE 'platform' AND DATE(ca.final_datetime) > %s AND DATE(ca.final_datetime) < %s
 
 UNION ALL
 
@@ -72,7 +72,7 @@ SELECT ca.id as campaign_id, st.name as template_name, st.email_subject as templ
 FROM `campaigns` AS ca
 LEFT JOIN `services` AS sa ON ca.campaign_service_id = sa.id
 LEFT JOIN email_templates AS st ON ca.template_id = st.id
-WHERE ca.campaign_channel_code LIKE 'email'
+WHERE ca.campaign_channel_code LIKE 'email' AND DATE(ca.final_datetime) > %s AND DATE(ca.final_datetime) < %s
 
 LIMIT %s OFFSET %s
 """
@@ -98,7 +98,9 @@ def run() -> pd.DataFrame:
     log.info("Fetched %s campaign rows", len(campaign))
 
     replica_cfg = config.crm_db_replica()
-    templates = db.fetch_offset_paginated_all(replica_cfg, TEMPLATE_SQL)
+    templates = db.fetch_offset_paginated_all(
+        replica_cfg, TEMPLATE_SQL, params=(lower, upper, lower, upper, lower, upper, lower, upper)
+    )
     log.info("Fetched %s template rows", len(templates))
 
     notification = campaign.merge(templates, on="campaign_id", how="left")

@@ -41,7 +41,7 @@ jobs:
     timeout-minutes: 180
 
     env:
-      TARGET_MONTH: ${{ github.event.inputs.target_month }}
+      TARGET_MONTH: ${{ inputs.target_month }}
 
       CRM_DB_HOST: ${{ secrets.CRM_DB_HOST }}
       CRM_DB_USER: ${{ secrets.CRM_DB_USER }}
@@ -87,7 +87,7 @@ jobs:
 
       - name: Run pipeline
         run: |
-          if [ "${{ github.event.inputs.send_email }}" = "false" ]; then
+          if [ "${{ inputs.send_email }}" = "false" ]; then
             python run_pipeline.py --no-email
           else
             python run_pipeline.py

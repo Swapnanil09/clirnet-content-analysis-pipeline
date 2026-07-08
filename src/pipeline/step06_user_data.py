@@ -36,7 +36,9 @@ Left join countries ON user_data_index.country = countries.id
 Left join councils ON user_data_index.medical_council = councils.id
 Left Join usertypes ON user_data_index.user_type_id = usertypes.master_id
 Left Join degrees ON user_data_index.degree = degrees.id
-LIMIT %s OFFSET %s
+WHERE user_data_index.uid > %s
+ORDER BY user_data_index.uid
+LIMIT %s
 """
 
 CRM_STATUS_MAP = {
@@ -55,7 +57,7 @@ def run() -> None:
     cfg = config.crm_db()
     out_path = config.data_path("user_data.parquet")
     log.info("Streaming user_data_index in %s-row pages -> %s", config.SQL_PAGE_SIZE, out_path)
-    total = db.stream_offset_paginated_to_parquet(
-        cfg, USER_DATA_SQL, out_path, post_process=_post_process
+    total = db.stream_pk_paginated_to_parquet(
+        cfg, USER_DATA_SQL, id_col_alias="user_master_id", out_path=out_path, post_process=_post_process
     )
     log.info("Wrote %s (%s rows total, streamed — never held fully in memory)", out_path, total)
