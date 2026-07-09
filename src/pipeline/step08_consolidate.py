@@ -31,8 +31,16 @@ def run() -> None:
     temp.to_parquet(config.data_path("notification_temp.parquet"), index=False)
     log.info("notification_temp.parquet: %s rows", len(temp))
 
-    # notification log: passthrough rename for a clearer downstream filename
+    # notification log: deduplicate to keep the best status for each unique temp_id (id)
     log_df = pd.read_parquet(config.data_path("Notification_log_all.parquet"))
+    if "status" in log_df.columns:
+        status_priority = {"Seen": 4, "Delivered": 3, "Sent": 2, "Rejected": 1}
+        log_df["_priority"] = log_df["status"].map(status_priority).fillna(0)
+        log_df = log_df.sort_values("_priority", ascending=False)
+        log_df = log_df.drop_duplicates(subset=["id"])
+        log_df = log_df.drop(columns=["_priority"])
+    else:
+        log_df = log_df.drop_duplicates(subset=["id"])
     log_df.to_parquet(config.data_path("notification_log.parquet"), index=False)
 
     # shortlink dictionary: passthrough rename for a clearer downstream filename

@@ -25,14 +25,44 @@ FINAL_COLUMNS = [
 
 
 def run() -> pd.DataFrame:
+    import json
+    # 1. Load campaign
+    campaign = pd.read_parquet(config.data_path("notifications_with_shortlink.parquet"))
+    # Explode transaction_id so we have one row per transaction ID
+    campaign = campaign.dropna(subset=["transaction_id"]).copy()
+    
+    def parse_transaction_id(val):
+        if not val:
+            return []
+        if isinstance(val, str):
+            try:
+                return json.loads(val.replace("\n", ""))
+            except Exception:
+                return [val]
+        if isinstance(val, list):
+            return val
+        return [str(val)]
+
+    campaign["transaction_id"] = campaign["transaction_id"].apply(parse_transaction_id)
+    campaign = campaign.explode("transaction_id").reset_index(drop=True)
+    campaign["transaction_id"] = campaign["transaction_id"].astype(str)
+
+    # 2. Load notification_temp
+    notification_temp = pd.read_parquet(config.data_path("notification_temp.parquet"))
+    notification_temp["transaction_id"] = notification_temp["transaction_id"].astype(str)
+
+    # 3. Merge campaign with notification_temp to get temp_id
+    campaign_temp = campaign.merge(notification_temp, on=["campaign_id", "transaction_id"], how="inner")
+    campaign_temp = campaign_temp.rename(columns={"transaction_id": "transaction_id_y"})
+
+    # 4. Load notification_log and join on temp_id
     notification_log = pd.read_parquet(config.data_path("notification_log.parquet"))
     notification_log = notification_log[["temp_id", "status", "uid", "channel"]]
+    notification_log["temp_id"] = notification_log["temp_id"].astype(int)
+    campaign_temp["temp_id"] = campaign_temp["temp_id"].astype(int)
 
-    notification_temp = pd.read_parquet(config.data_path("notification_temp.parquet"))
-    temp_log = notification_log.merge(notification_temp, on="temp_id", how="left")
+    notifications = campaign_temp.merge(notification_log, on="temp_id", how="inner")
 
-    campaign = pd.read_parquet(config.data_path("notifications_with_shortlink.parquet"))
-    notifications = campaign.merge(temp_log, on="campaign_id", how="left")
     notifications = notifications[FINAL_COLUMNS]
     notifications = notifications.dropna().copy()
     notifications["uid"] = notifications["uid"].astype(int)
