@@ -154,6 +154,9 @@ def run() -> pd.DataFrame:
     final_content["reach"] = final_content["reach"].astype(int)
     final_content["popularity"] = final_content["popularity"].astype(int)
 
+    if "description" in final_content.columns:
+        final_content["description"] = final_content["description"].fillna("").astype(str).str.slice(0, 200)
+
     final_content.to_csv(config.OUT_ALL_CONTENT_DATA, index=False)
     log.info("Wrote %s (%s rows)", config.OUT_ALL_CONTENT_DATA, len(final_content))
 
