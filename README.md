@@ -89,7 +89,7 @@ Set once, in `src/config.py`, and used everywhere else in the pipeline:
 - If the `TARGET_MONTH` environment variable is set (format `"YYYY-MM"`,
   e.g. `"2026-06"`), that month is used — for backfills or re-runs.
 - Otherwise it defaults to **last calendar month** relative to when the
-  pipeline runs. The scheduled GitHub Actions job runs on the 3rd of each
+  pipeline runs. The scheduled GitHub Actions job runs on the 2nd of each
   month, so by default it reports on the month that just closed.
 
 Everything else is derived from that one value: the SQL date-range filters
@@ -156,10 +156,10 @@ gh secret set CRM_DB_USER --env production --body "..."
 ### 4. Verify the schedule
 
 The workflow (`.github/workflows/monthly_pipeline.yml`) runs at
-`0 3 3 * *` — 03:00 UTC on the 3rd of every month, which is 08:30 AM
+`30 3 2 * *` — 03:30 UTC on the 2nd of every month, which is 09:00 AM
 **Asia/Kolkata (IST)** on the same date (GitHub Actions cron has no
 timezone setting, so the schedule is always written in UTC — IST is
-UTC+5:30, and since 08:30 IST minus 5:30 still lands on 03:00 the same
+UTC+5:30, and since 09:00 IST minus 5:30 still lands on 03:30 the same
 calendar day, the day-of-month number matches in both timezones). Paste
 the expression into [crontab.guru](https://crontab.guru) if you want to
 change the day or time — just note that shifting the IST time earlier
