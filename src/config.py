@@ -192,8 +192,10 @@ EMAIL_FROM: str | None = _env("EMAIL_FROM")
 EMAIL_PASSWORD: str | None = _env("EMAIL_PASSWORD")
 EMAIL_SMTP_SERVER: str = _env("EMAIL_SMTP_SERVER") or "smtp.office365.com"
 EMAIL_SMTP_PORT: int = int(_env("EMAIL_SMTP_PORT") or "587")
-EMAIL_SIGNOFF_NAME: str = _env("EMAIL_SIGNOFF_NAME") or "Swapnanil Chatterjee"
+EMAIL_SIGNOFF_NAME: str = _env("EMAIL_SIGNOFF_NAME") or "Soumya Biswas"
 EMAIL_TO: list[str] = [addr.strip() for addr in (_env("EMAIL_TO") or "").split(",") if addr.strip()]
+if "subhosmita.ghosh@clirnet.com" not in EMAIL_TO:
+    EMAIL_TO.append("subhosmita.ghosh@clirnet.com")
 
 # ---------------------------------------------------------------------------
 # 5. PATHS / OUTPUT FILE NAMES

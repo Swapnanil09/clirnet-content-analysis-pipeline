@@ -1,13 +1,13 @@
 name: Monthly Content Analysis BI Pipeline
 
-# Runs on the 3rd of every month at 03:00 UTC == 08:30 AM Asia/Kolkata (IST)
+# Runs on the 2nd of every month at 03:30 UTC == 09:00 AM Asia/Kolkata (IST)
 # and reports on the PREVIOUS month (see src/config.py — TARGET_MONTH
 # defaults to "last month" when not set).
 #
 # GitHub Actions cron always runs in UTC — there's no native timezone
 # option — so the UTC hour below is IST minus 5:30. IST is far enough
-# ahead of UTC that 08:30 IST still falls on the SAME calendar date in
-# UTC (03:00 UTC), so "3rd of the month" means the same day in both
+# ahead of UTC that 09:00 IST still falls on the SAME calendar date in
+# UTC (03:30 UTC), so "2nd of the month" means the same day in both
 # timezones. (This stops being true for early-morning IST times, e.g.
 # 3:00 AM IST is 9:30 PM UTC the day before — if you ever move this
 # earlier than ~05:30 IST, you'll need to shift the day-of-month back by
@@ -15,7 +15,7 @@ name: Monthly Content Analysis BI Pipeline
 # different day/time.
 on:
   schedule:
-    - cron: "0 3 3 * *"
+    - cron: "30 3 2 * *"
   workflow_dispatch:
     inputs:
       target_month:

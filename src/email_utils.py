@@ -29,6 +29,7 @@ def build_body() -> str:
         f"Speciality_month_diff_campaign – {config.MONTH_NAME}\n"
         f"Content_template_analysis – {config.MONTH_NAME}\n"
         "All content data – Current\n\n"
+        "This is an automated email.\n\n"
         "Thanks and Regards,\n"
         f"{config.EMAIL_SIGNOFF_NAME}"
     )
