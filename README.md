@@ -265,3 +265,5 @@ and in your local `.env` (which is git-ignored).
 | `smtplib.SMTPAuthenticationError` | `EMAIL_PASSWORD` needs to be an Office 365 **app password**, not the account's normal login password |
 | A step is slow / times out | Lower `SQL_PAGE_SIZE` / `ID_BATCH_SIZE` in `.env`, or raise the workflow's `timeout-minutes` |
 | GitHub Actions run shows secrets as empty | Confirm secrets were added to the `production` **Environment**, not just repo-level "Actions secrets" |
+
+
